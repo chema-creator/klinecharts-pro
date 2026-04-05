@@ -1,0 +1,44 @@
+@import (reference) '../../base.less';
+
+.@{prefix-cls}-tabs {
+  .tabs-header {
+    display: flex;
+    border-bottom: 1px solid var(--klinecharts-pro-border-color, #292929);
+    margin-bottom: 16px;
+    gap: 0;
+  }
+
+  .tab-item {
+    padding: 8px 20px;
+    border: none;
+    background: transparent;
+    color: var(--klinecharts-pro-text-second-color, #929aa5);
+    font-size: 13px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.15s, border-color 0.15s;
+    white-space: nowrap;
+
+    &:hover {
+      color: var(--klinecharts-pro-text-color, #d1d4dc);
+    }
+  }
+
+  .tab-item-active {
+    color: var(--klinecharts-pro-primary-color, #1677ff);
+    border-bottom-color: var(--klinecharts-pro-primary-color, #1677ff);
+  }
+
+  .tabs-content {
+    padding: 0;
+  }
+
+  .tab-panel {
+    animation: tabFadeIn 0.15s ease;
+  }
+
+  @keyframes tabFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
