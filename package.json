@@ -32,5 +32,12 @@
   },
   "peerDependencies": {
     "@nofx/klinecharts": ">=9.0.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/klinecharts-pro.js",
+      "require": "./dist/klinecharts-pro.umd.js"
+    }
   }
 }
