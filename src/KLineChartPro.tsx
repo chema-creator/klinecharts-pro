@@ -41,7 +41,7 @@ export default class KLineChartPro implements ChartPro {
     this._container.classList.add('klinecharts-pro')
     this._container.setAttribute('data-theme', options.theme ?? 'light')
 
-    render(
+    this._disposeRoot = render(
       () => (
         <ChartProComponent
           ref={(chart: ChartPro) => { this._chartApi = chart }}
@@ -79,6 +79,29 @@ export default class KLineChartPro implements ChartPro {
 
   private _chartApi: Nullable<ChartPro> = null
 
+  // Disposer returned by Solid's render(). Calling it tears down the Solid
+  // reactive root, which fires ChartProComponent's onCleanup (disposing the
+  // Core chart and the datafeed subscription effect). Without this, the Solid
+  // root and its subscriptions leak forever on unmount.
+  private _disposeRoot: (() => void) | null = null
+
+  /**
+   * Tear down the chart: dispose the Solid reactive root (fires onCleanup),
+   * then detach from the container. Idempotent — safe to call more than once.
+   */
+  dispose (): void {
+    if (this._disposeRoot) {
+      this._disposeRoot()
+      this._disposeRoot = null
+    }
+    if (this._container) {
+      this._container.classList.remove('klinecharts-pro')
+      this._container.removeAttribute('data-theme')
+      this._container.innerHTML = ''
+    }
+    this._chartApi = null
+    this._container = null
+  }
 
   setTheme (theme: string): void {
     this._container?.setAttribute('data-theme', theme)
