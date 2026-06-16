@@ -78,6 +78,12 @@ const ChartProComponent: Component<ChartProComponentProps> = props => {
 
   let loading = false
 
+  // Set on teardown. The history fetch in the symbol/period effect is async
+  // (awaits getHistoryKLineData before subscribing); if the component is
+  // disposed mid-fetch, the deferred subscribe must NOT run — otherwise it
+  // registers a datafeed subscription AFTER cleanup already ran, orphaning it.
+  let disposed = false
+
   const [theme, setTheme] = createSignal(props.theme)
   const [styles, setStyles] = createSignal(props.styles)
   const [locale, setLocale] = createSignal(props.locale)
@@ -313,6 +319,7 @@ const ChartProComponent: Component<ChartProComponentProps> = props => {
   })
 
   onCleanup(() => {
+    disposed = true
     window.removeEventListener('resize', documentResize)
     dispose(widgetRef!)
   })
@@ -340,6 +347,10 @@ const ChartProComponent: Component<ChartProComponentProps> = props => {
       const get = async () => {
         const [from, to] = adjustFromTo(p, new Date().getTime(), 500)
         const kLineDataList = await props.datafeed.getHistoryKLineData(s, p, from, to)
+        // If the component was disposed while the history fetch was in flight,
+        // abort: do NOT touch the disposed widget and do NOT register a
+        // subscription that cleanup can no longer release (orphan leak guard).
+        if (disposed) return
         widget?.applyNewData(kLineDataList, kLineDataList.length > 0)
         props.datafeed.subscribe(s, p, data => {
           widget?.updateData(data)
