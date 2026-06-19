@@ -146,6 +146,15 @@ const ChartProComponent: Component<ChartProComponentProps> = props => {
     widget?.resize()
   }
 
+  // ResizeObserver on the chart container. The window 'resize' listener only
+  // fires when the BROWSER WINDOW changes size — it does NOT fire when the
+  // chart's host element is resized by a layout manager (e.g. a dockview panel
+  // being dragged). Without this, the canvas keeps its mount-time dimensions:
+  // shrinking hides content, growing leaves empty space, and the price/time
+  // axes can be clipped. Observing widgetRef and calling widget.resize() keeps
+  // the canvas in sync with its container at any size.
+  let resizeObserver: ResizeObserver | null = null
+
   const adjustFromTo = (period: Period, toTimestamp: number, count: number) => {
     let to = toTimestamp
     let from = to
@@ -200,6 +209,12 @@ const ChartProComponent: Component<ChartProComponentProps> = props => {
 
   onMount(() => {
     window.addEventListener('resize', documentResize)
+    // Observe the container element so the chart resizes when its PANEL changes
+    // size (not just the window). Guarded for environments without ResizeObserver.
+    if (typeof ResizeObserver !== 'undefined' && widgetRef) {
+      resizeObserver = new ResizeObserver(() => { widget?.resize() })
+      resizeObserver.observe(widgetRef)
+    }
     widget = init(widgetRef!, {
       customApi: {
         formatDate: (dateTimeFormat: Intl.DateTimeFormat, timestamp, format: string, type: FormatDateType) => {
@@ -246,7 +261,12 @@ const ChartProComponent: Component<ChartProComponentProps> = props => {
           const str = (props.watermark as string).replace(/(^\s*)|(\s*$)/g, '')
           watermark.innerHTML = str
         } else {
-          watermark.appendChild(props.watermark as Node)
+          // CLONE the watermark node instead of appending it directly.
+          // props.watermark is a single shared Node (e.g. the default Logo).
+          // appendChild MOVES a node — so mounting a 2nd chart instance would
+          // steal the watermark from the 1st. cloneNode(true) gives each
+          // instance its own copy, so every chart keeps its watermark.
+          watermark.appendChild((props.watermark as Node).cloneNode(true))
         }
         watermarkContainer.appendChild(watermark)
       }
@@ -321,6 +341,8 @@ const ChartProComponent: Component<ChartProComponentProps> = props => {
   onCleanup(() => {
     disposed = true
     window.removeEventListener('resize', documentResize)
+    resizeObserver?.disconnect()
+    resizeObserver = null
     dispose(widgetRef!)
   })
 
