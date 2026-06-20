@@ -358,32 +358,52 @@ const ChartProComponent: Component<ChartProComponentProps> = props => {
   })
 
   createEffect((prev?: PrevSymbolPeriod) => {
-    if (!loading) {
-      if (prev) {
-        props.datafeed.unsubscribe(prev.symbol, prev.period)
-      }
-      const s = symbol()
-      const p = period()
-      loading = true
-      setLoadingVisible(true)
-      const get = async () => {
+    // Read symbol() and period() UNCONDITIONALLY at the top so Solid always
+    // tracks them as dependencies of this effect — on EVERY run, regardless of
+    // which branch executes below. Reading them only inside the `if (!loading)`
+    // branch meant that once the effect ran while `loading === true` (e.g. a
+    // re-entry during the async history fetch, or a StrictMode-stranded flag),
+    // the early-return branch read no signals and Solid dropped the dependency
+    // set, leaving the effect permanently deaf to setPeriod/setSymbol. That made
+    // the timeframe selector inert at runtime (no resubscribe on period change).
+    const s = symbol()
+    const p = period()
+
+    // Still in flight from a previous run: keep the tracked deps (above) but do
+    // not start a second overlapping fetch/subscribe.
+    if (loading) {
+      return prev
+    }
+
+    if (prev) {
+      props.datafeed.unsubscribe(prev.symbol, prev.period)
+    }
+    loading = true
+    setLoadingVisible(true)
+    const get = async () => {
+      try {
         const [from, to] = adjustFromTo(p, new Date().getTime(), 500)
         const kLineDataList = await props.datafeed.getHistoryKLineData(s, p, from, to)
         // If the component was disposed while the history fetch was in flight,
-        // abort: do NOT touch the disposed widget and do NOT register a
-        // subscription that cleanup can no longer release (orphan leak guard).
+        // abort the chart/subscription work: do NOT touch the disposed widget and
+        // do NOT register a subscription that cleanup can no longer release
+        // (orphan leak guard). The `finally` below still resets `loading`.
         if (disposed) return
         widget?.applyNewData(kLineDataList, kLineDataList.length > 0)
         props.datafeed.subscribe(s, p, data => {
           widget?.updateData(data)
         })
+      } finally {
+        // Reset UNCONDITIONALLY — even on the disposed path. A StrictMode
+        // mount→cleanup→mount cycle disposes the throwaway instance mid-fetch;
+        // leaving `loading` stranded `true` there would make every later effect
+        // run take the early-return branch and freeze the selector.
         loading = false
         setLoadingVisible(false)
       }
-      get()
-      return { symbol: s, period: p }
     }
-    return prev
+    get()
+    return { symbol: s, period: p }
   })
 
   createEffect(() => {
